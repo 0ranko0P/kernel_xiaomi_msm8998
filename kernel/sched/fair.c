@@ -8627,7 +8627,7 @@ group_is_overloaded(struct lb_env *env, struct sg_lb_stats *sgs)
 static inline bool
 group_smaller_cpu_capacity(struct sched_group *sg, struct sched_group *ref)
 {
-	return sg->sgc->max_capacity + capacity_margin - SCHED_LOAD_SCALE <
+	return sg->sgc->max_capacity + capacity_margin - SCHED_CAPACITY_SCALE <
 							ref->sgc->max_capacity;
 }
 
@@ -9144,7 +9144,7 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 	if (busiest->group_type == group_overloaded &&
 	    local->group_type   == group_overloaded) {
 		load_above_capacity = busiest->sum_nr_running *
-					SCHED_LOAD_SCALE;
+				      scale_load_down(NICE_0_LOAD);
 		if (load_above_capacity > busiest->group_capacity)
 			load_above_capacity -= busiest->group_capacity;
 		else
