@@ -306,6 +306,9 @@ struct qpnp_hap {
 	u32 time_required_to_generate_back_emf_us;
 	u32				vibration_time;
 	u32				vmax_mv;
+	u32				vtg_min;
+	u32				vtg_max;
+	u32				vtg_default;
 	u32 vmax_overbrake_mv;
 	u32 vmax_overdrive_mv;
 	u32				ilim_ma;
@@ -727,16 +730,16 @@ static int qpnp_hap_vmax_config(struct qpnp_hap *hap)
 	u8 reg = 0;
 	int rc, temp;
 
-	if (hap->vmax_mv < QPNP_HAP_VMAX_MIN_MV)
-		hap->vmax_mv = QPNP_HAP_VMAX_MIN_MV;
-	else if (hap->vmax_mv > QPNP_HAP_VMAX_MAX_MV)
-		hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
+	if (hap->vmax_mv < hap->vtg_min)
+		hap->vmax_mv = hap->vtg_min;
+	else if (hap->vmax_mv > hap->vtg_max)
+		hap->vmax_mv = hap->vtg_max;
 
 	rc = qpnp_hap_read_reg(hap, &reg, QPNP_HAP_VMAX_REG(hap->base));
 	if (rc < 0)
 		return rc;
 	reg &= QPNP_HAP_VMAX_MASK;
-	temp = hap->vmax_mv / QPNP_HAP_VMAX_MIN_MV;
+	temp = hap->vmax_mv / hap->vtg_min;
 	reg |= (temp << QPNP_HAP_VMAX_SHIFT);
 	rc = qpnp_hap_write_reg(hap, &reg, QPNP_HAP_VMAX_REG(hap->base));
 	if (rc)
@@ -1563,6 +1566,36 @@ static ssize_t qpnp_hap_vmax_store(struct device *dev,
 	return count;
 }
 
+static ssize_t qpnp_hap_min_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_min);
+}
+
+static ssize_t qpnp_hap_max_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_max);
+}
+
+static ssize_t qpnp_hap_default_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vtg_default);
+}
+
 /* sysfs show function for vmax overbrake */
 static ssize_t qpnp_hap_vmax_overbrake_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1702,6 +1735,10 @@ static struct device_attribute qpnp_hap_attrs[] = {
 			qpnp_hap_brake_pat_max_store),
 	__ATTR(square_drive, 0664, qpnp_hap_square_drive_show,
 			qpnp_hap_square_drive_store),
+	__ATTR(vtg_level, 0664, qpnp_hap_vmax_show, qpnp_hap_vmax_store),
+	__ATTR(vtg_min, 0664, qpnp_hap_min_show, NULL),
+	__ATTR(vtg_max, 0664, qpnp_hap_max_show, NULL),
+	__ATTR(vtg_default, 0664, qpnp_hap_default_show, NULL),
 };
 
 static void calculate_lra_code(struct qpnp_hap *hap)
@@ -2052,7 +2089,7 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 					 timed_dev);
 
 	spin_lock(&hap->td_lock);
-	hap->td_time_ms = time_ms;
+	hap->td_time_ms = value;
 	spin_unlock(&hap->td_lock);
 
 	schedule_work(&hap->td_work);
@@ -2638,7 +2675,25 @@ static int qpnp_hap_parse_dt(struct qpnp_hap *hap)
 		return rc;
 	}
 
-	hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
+	hap->vtg_min = QPNP_HAP_VMAX_MIN_MV;
+	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vtg-min", &temp);
+	if (!rc) {
+		hap->vtg_min = temp;
+	} else if (rc != -EINVAL) {
+		pr_err("Unable to read vtg_min\n");
+		return rc;
+	}
+
+	hap->vtg_max = QPNP_HAP_VMAX_MAX_MV;
+	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vtg-max", &temp);
+	if (!rc) {
+		hap->vtg_max = temp;
+	} else if (rc != -EINVAL) {
+		pr_err("Unable to read vtg_max\n");
+		return rc;
+	}
+
+	hap->vmax_mv = hap->vtg_max;
 	rc = of_property_read_u32(pdev->dev.of_node, "qcom,vmax-mv", &temp);
 	if (!rc) {
 		hap->vmax_mv = temp;
@@ -2646,6 +2701,14 @@ static int qpnp_hap_parse_dt(struct qpnp_hap *hap)
 		dev_err(&pdev->dev, "Unable to read vmax\n");
 		return rc;
 	}
+
+	if (hap->vmax_mv < hap->vtg_min) {
+		hap->vmax_mv = hap->vtg_min;
+	} else if (hap->vmax_mv > hap->vtg_max) {
+		hap->vmax_mv = hap->vtg_max;
+	}
+
+	hap->vtg_default = hap->vmax_mv;
 
 		hap->vmax_overbrake_mv = 0;
 		rc = of_property_read_u32(pdev->dev.of_node,
