@@ -1,5 +1,5 @@
 /* Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
- * Copyright (C) 2018 XiaoMi, Inc.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -316,6 +316,7 @@ struct msm_fb_data_type {
 	int bl_extn_level;
 	u32 bl_scale;
 	u32 unset_bl_level;
+	u32 backlight_enable_flag;
 	bool allow_bl_update;
 	u32 bl_level_scaled;
 	u32 bl_level_usr;

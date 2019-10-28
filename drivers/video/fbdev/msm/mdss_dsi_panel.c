@@ -1,5 +1,5 @@
 /* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
- * Copyright (C) 2018 XiaoMi, Inc.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,20 +39,7 @@
 #define PANEL_READ_CNT    32
 #define XY_COORDINATE_NUM    3
 
-#define HWCOMPONENT_NAME "display"
-#define HWCOMPONENT_KEY_LCD "LCD"
 #define DISPLAY_SKINCE_MODE 0x400000
-
-#define HWMON_CONPONENT_NAME "display"
-#define HWMON_KEY_ACTIVE "panel_active"
-#define HWMON_KEY_REFRESH "panel_refresh"
-#define HWMON_KEY_BOOTTIME "kernel_boottime"
-#define HWMON_KEY_DAYS "kernel_days"
-#define HWMON_KEY_BL_AVG "bl_level_avg"
-#define HWMON_KEY_BL_HIGH "bl_level_high"
-#define HWMON_KEY_BL_LOW "bl_level_low"
-#define DAY_SECS (60*60*24)
-
 
 #define DISPLAY_OFF_MODE 0x60000
 #define DISPLAY_ON_MODE 0x70000
@@ -445,47 +432,6 @@ ret:
 	return rc;
 }
 
-static void mdss_dsi_panel_count(struct mdss_panel_data *pdata, int enable)
-{
-	static u64 timestamp_panelon;
-	char ch[64] = {0};
-
-	if (enable) {
-		/* get panel on timestamp */
-		timestamp_panelon = get_jiffies_64();
-	} else {
-		u32 delta_days = 0;
-		struct timespec rtctime;
-
-		/* caculate panel active duration */
-		getnstimeofday(&rtctime);
-		if (pdata->panel_info.bootRTCtime != 0) {
-			if (rtctime.tv_sec > pdata->panel_info.bootRTCtime) {
-				if (rtctime.tv_sec - pdata->panel_info.bootRTCtime > 10 * 365 * DAY_SECS) {
-					pdata->panel_info.bootRTCtime = rtctime.tv_sec;
-				} else {
-					if (rtctime.tv_sec - pdata->panel_info.bootRTCtime > DAY_SECS) {
-						delta_days = (rtctime.tv_sec - pdata->panel_info.bootRTCtime) / DAY_SECS;
-						pdata->panel_info.bootdays += delta_days;
-						pdata->panel_info.bootRTCtime = rtctime.tv_sec -
-							((rtctime.tv_sec - pdata->panel_info.bootRTCtime) % DAY_SECS);
-					}
-				}
-			} else {
-				pr_err("RTC time rollback!\n");
-				pdata->panel_info.bootRTCtime = rtctime.tv_sec;
-			}
-		} else {
-			pr_info("panel_info.bootRTCtime init!\n");
-			pdata->panel_info.bootRTCtime = rtctime.tv_sec;
-		}
-		memset(ch, 0, sizeof(ch));
-		snprintf(ch, sizeof(ch), "%llu", pdata->panel_info.bootdays);
-	}
-
-	return;
-}
-
 int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
@@ -501,8 +447,6 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 				panel_data);
 
 	pinfo = &(ctrl_pdata->panel_data.panel_info);
-
-	mdss_dsi_panel_count(pdata, enable);
 
 	/* For TDDI ddic panel, LCD shares reset pin with touch.
 	 * If gesture wakeup feature is enabled, the reset pin
@@ -1123,17 +1067,17 @@ static inline void mdss_panel_disparam_set(struct mdss_dsi_ctrl_pdata *ctrl, uin
 
 		break;
 	case DISPLAY_OFF_MODE:
-		 if (ctrl->displayoff_cmds.cmd_cnt) {
+		if (ctrl->displayoff_cmds.cmd_cnt) {
 			pr_info("display off mode\n");
 			mdss_dsi_panel_cmds_send(ctrl, &ctrl->displayoff_cmds, CMD_REQ_COMMIT);
-		 }
-		 break;
+		}
+		break;
 	case DISPLAY_ON_MODE:
-		 if (ctrl->displayon_cmds.cmd_cnt) {
+		if (ctrl->displayon_cmds.cmd_cnt) {
 			pr_info("display on mode\n");
 			mdss_dsi_panel_cmds_send(ctrl, &ctrl->displayon_cmds, CMD_REQ_COMMIT);
-		 }
-		 break;
+		}
+		break;
 	case 0xA0000:
 		if (ctrl->dispparam_idleon_cmds.cmd_cnt) {
 			pr_info("idleon\n");
@@ -1415,37 +1359,6 @@ static void mdss_dsi_panel_wled_cabc_ctrl(struct led_trigger *trig,
 		qpnp_wled_cabc(led_cdev, enable);
 }
 
-static void mdss_dsi_panel_bl_count(struct mdss_panel_data *pdata,
-							u32 bl_level)
-{
-	static u32 last_bl_level;
-	static u64 last_bl_start;
-	u64 bl_level_end = 0;
-	char ch[64] = {0};
-
-	bl_level_end = get_jiffies_64();
-	if (last_bl_level > 0) {
-		pdata->panel_info.bl_level_integral += last_bl_level * (bl_level_end - last_bl_start);
-		pdata->panel_info.bl_duration += (bl_level_end - last_bl_start);
-	}
-
-
-	if (last_bl_level > 3071) {
-		pdata->panel_info.bl_highlevel_duration += (bl_level_end - last_bl_start);
-	} else if (last_bl_level > 0) {
-		pdata->panel_info.bl_lowlevel_duration += (bl_level_end - last_bl_start);
-	}
-
-	last_bl_level = bl_level;
-	last_bl_start = bl_level_end;
-
-	if (bl_level == 0) {
-		memset(ch, 0, sizeof(ch));
-	}
-
-	return;
-}
-
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
 {
@@ -1496,8 +1409,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			enable_esd_thread();
 		}
 	}
-
-	mdss_dsi_panel_bl_count(pdata, bl_level);
 
 	/* enable the backlight gpio if present */
 	mdss_dsi_bl_gpio_ctrl(pdata, bl_level);
@@ -3800,7 +3711,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	static const char *panel_name;
 	struct mdss_panel_info *pinfo;
 	bool dispparam_enabled;
-	static const char *panel_model;
 
 	if (!node || !ctrl_pdata) {
 		pr_err("%s: Invalid arguments\n", __func__);
@@ -3828,21 +3738,12 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	INIT_DELAYED_WORK(&ctrl_pdata->cmds_work, panelon_dimming_enable_delayed_work);
 
-	pinfo->panel_active = 0;
-	pinfo->kickoff_count = 0;
-	pinfo->bl_duration = 0;
-	pinfo->bl_level_integral = 0;
-	pinfo->bl_highlevel_duration = 0;
-	pinfo->bl_lowlevel_duration = 0;
-
 	rc = of_property_read_u32(node, "qcom,mdss-panel-on-dimming-delay", &pinfo->panel_on_dimming_delay);
 	if (rc) {
 		pinfo->panel_on_dimming_delay = 0;
 		pr_info("Panel on dimming delay disabled\n");
 	} else
 		pr_info("Panel on dimming delay %d ms\n", pinfo->panel_on_dimming_delay);
-
-	panel_model = of_get_property(node, "qcom,mdss-dsi-panel-model", NULL);
 
 	pinfo->dynamic_switch_pending = false;
 	pinfo->is_lpm_mode = false;
@@ -3859,13 +3760,13 @@ int mdss_dsi_panel_init(struct device_node *node,
 						"qcom,disp-paneloff-disablecabc-enabled");
 
 	if (dispparam_enabled) {
-		 pr_info("%s:%d Dispparam enabled.\n", __func__, __LINE__);
-		 ctrl_pdata->panel_data.panel_info.dispparam_enabled = 1;
-		 ctrl_pdata->dispparam_fnc = mdss_dsi_panel_dispparam;
+		pr_info("%s:%d Dispparam enabled.\n", __func__, __LINE__);
+		ctrl_pdata->panel_data.panel_info.dispparam_enabled = 1;
+		ctrl_pdata->dispparam_fnc = mdss_dsi_panel_dispparam;
 	} else {
-		 pr_info("%s:%d Dispparam disabled.\n", __func__, __LINE__);
-		 ctrl_pdata->panel_data.panel_info.dispparam_enabled = 0;
-		 ctrl_pdata->dispparam_fnc = NULL;
+		pr_info("%s:%d Dispparam disabled.\n", __func__, __LINE__);
+		ctrl_pdata->panel_data.panel_info.dispparam_enabled = 0;
+		ctrl_pdata->dispparam_fnc = NULL;
 	}
 
 	ctrl_pdata->on = mdss_dsi_panel_on;

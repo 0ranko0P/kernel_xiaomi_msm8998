@@ -1,5 +1,5 @@
 /* Copyright (c) 2012, 2016-2017, The Linux Foundation. All rights reserved.
- * Copyright (C) 2018 XiaoMi, Inc.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -91,14 +91,6 @@ struct dss_module_power {
 	unsigned num_clk;
 	struct dss_clk *clk_config;
 };
-
-#ifdef CONFIG_MACH_XIAOMI_MSM8998
-bool mdss_panel_is_prim(void *fbinfo);
-bool mdss_prim_panel_is_dead(void);
-void mdss_panel_reset_skip_enable(bool enable);
-void mdss_dsi_ulps_enable(bool enable);
-void mdss_dsi_ulps_suspend_enable(bool enable);
-#endif
 
 int msm_dss_ioremap_byname(struct platform_device *pdev,
 	struct dss_io_data *io_data, const char *name);

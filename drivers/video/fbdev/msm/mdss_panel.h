@@ -1,5 +1,5 @@
 /* Copyright (c) 2008-2018, The Linux Foundation. All rights reserved.
- * Copyright (C) 2018 XiaoMi, Inc.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -934,16 +934,6 @@ struct mdss_panel_info {
 
 	/* debugfs structure for the panel */
 	struct mdss_panel_debugfs_info *debugfs_info;
-	u64 panel_active;
-	u64 kickoff_count;
-	u64 boottime;
-	u64 bootRTCtime;
-	u64 bootdays;
-
-	u64 bl_duration;
-	u64 bl_level_integral;
-	u64 bl_highlevel_duration;
-	u64 bl_lowlevel_duration;
 
 	/* persistence mode on/off */
 	bool persist_mode;

@@ -3,7 +3,6 @@
  *
  * Copyright (c) 2008-2019, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
- * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -52,7 +51,6 @@
 #include <linux/interrupt.h>
 #include <linux/mdss_io_util.h>
 #include <linux/wakelock.h>
-#include <linux/rtc.h>
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
@@ -136,7 +134,6 @@ static atomic_t prim_panel_is_on;
 static struct wake_lock prim_panel_wakelock;
 static void prim_panel_off_delayed_work(struct work_struct *work)
 {
-
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	console_lock();
 #endif
@@ -150,7 +147,6 @@ static void prim_panel_off_delayed_work(struct work_struct *work)
 	if (atomic_read(&prim_panel_is_on)) {
 		fb_blank(prim_fbi, FB_BLANK_POWERDOWN);
 		atomic_set(&prim_panel_is_on, false);
-		wake_unlock(&prim_panel_wakelock);
 	}
 
 	unlock_fb_info(prim_fbi);
@@ -687,7 +683,8 @@ static ssize_t mdss_fb_get_panel_info(struct device *dev,
 			"red_chromaticity_x=%d\nred_chromaticity_y=%d\n"
 			"green_chromaticity_x=%d\ngreen_chromaticity_y=%d\n"
 			"blue_chromaticity_x=%d\nblue_chromaticity_y=%d\n"
-			"panel_orientation=%d\ndyn_bitclk_en=%d\nis_ccbb_enabled=%d\nis_blnotify_enabled=%d\n",
+			"panel_orientation=%d\ndyn_bitclk_en=%d\n"
+			"is_ccbb_enabled=%d\nis_blnotify_enabled=%d\n",
 			pinfo->partial_update_enabled,
 			pinfo->roi_alignment.xstart_pix_align,
 			pinfo->roi_alignment.width_pix_align,
@@ -714,8 +711,7 @@ static ssize_t mdss_fb_get_panel_info(struct device *dev,
 			pinfo->hdr_properties.display_primaries[6],
 			pinfo->hdr_properties.display_primaries[7],
 			pinfo->panel_orientation, pinfo->dynamic_bitclk,
-			pinfo->ccbb_enabled,
-			pinfo->bl_notify_enabled);
+			pinfo->ccbb_enabled, pinfo->bl_notify_enabled);
 
 	return ret;
 }
@@ -992,141 +988,6 @@ static ssize_t mdss_fb_idle_pc_notify(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "idle power collapsed\n");
 }
 
-#define HWMON_CONPONENT_NAME "display"
-#define HWMON_KEY_ACTIVE "panel_active"
-#define HWMON_KEY_REFRESH "panel_refresh"
-#define HWMON_KEY_BOOTTIME "kernel_boottime"
-#define HWMON_KEY_DAYS "kernel_days"
-#define HWMON_KEY_BL_AVG "bl_level_avg"
-#define HWMON_KEY_BL_HIGH "bl_level_high"
-#define HWMON_KEY_BL_LOW "bl_level_low"
-#define DAY_SECS (60*60*24)
-
-static ssize_t mdss_fb_set_panel_count(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	u64 panel_active = 0;
-	u64 kickoff_count = 0;
-	u64 kernel_boottime = 0;
-	u64 kernel_rtctime = 0;
-	u64 kernel_days = 0;
-	u64 record_end = 0;
-	u32 delta_days = 0;
-	u64 bl_duration = 0;
-	u64 bl_level_integral = 0;
-	u64 bl_highlevel_duration = 0;
-	u64 bl_lowlevel_duration = 0;
-
-	ssize_t result;
-	struct timespec rtctime;
-
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
-
-	if (!mfd || !pdata) {
-		pr_err("%s: Panel info is NULL!\n", __func__);
-		return size;
-	}
-
-	result = sscanf(buf,
-		"panel_active=%llu\n"
-		"panel_kickoff_count=%llu\n"
-		"kernel_boottime=%llu\n"
-		"kernel_rtctime=%llu\n"
-		"kernel_days=%llu\n"
-		"bl_duration=%llu\n"
-		"bl_level_integral=%llu\n"
-		"bl_highlevel_duration=%llu\n"
-		"bl_lowlevel_duration=%llu\n"
-		"record_end=%llu\n",
-		&panel_active,
-		&kickoff_count,
-		&kernel_boottime,
-		&kernel_rtctime,
-		&kernel_days,
-		&bl_duration,
-		&bl_level_integral,
-		&bl_highlevel_duration,
-		&bl_lowlevel_duration,
-		&record_end);
-	if (result != 10) {
-		pr_err("sscanf buf error!\n");
-		return size;
-	}
-
-	getnstimeofday(&rtctime);
-	if (rtctime.tv_sec > kernel_rtctime) {
-		if (rtctime.tv_sec - kernel_rtctime > 10 * 365 * DAY_SECS) {
-			pdata->panel_info.bootRTCtime = rtctime.tv_sec;
-		} else {
-			if (rtctime.tv_sec - kernel_rtctime > DAY_SECS) {
-				delta_days = (rtctime.tv_sec - kernel_rtctime) / DAY_SECS;
-				pdata->panel_info.bootRTCtime = rtctime.tv_sec - ((rtctime.tv_sec - kernel_rtctime) % DAY_SECS);
-			} else {
-				pdata->panel_info.bootRTCtime = kernel_rtctime;
-			}
-		}
-	} else {
-		pr_err("RTC time rollback!\n");
-		pdata->panel_info.bootRTCtime = kernel_rtctime;
-	}
-
-	mutex_lock(&mfd->mdss_sysfs_lock);
-
-	return size;
-}
-
-static ssize_t mdss_fb_get_panel_count(struct device *dev,
-		struct device_attribute *attr, char *pbuf)
-{
-	int ret = -1;
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
-	struct timespec64 now_boot;
-	u64 record_end = 0;
-
-
-	if (!pdata) {
-		pr_err("no panel connected!\n");
-		return -EINVAL;
-	}
-
-	if (pbuf == NULL) {
-		pr_err("mdss_fb_get_dispparam buffer is NULL!\n");
-		return -EINVAL;
-	}
-
-	get_monotonic_boottime64(&now_boot);
-
-
-	ret = scnprintf(pbuf, PAGE_SIZE,
-		"panel_active=%llu\n"
-		"panel_kickoff_count=%llu\n"
-		"kernel_boottime=%llu\n"
-		"kernel_rtctime=%llu\n"
-		"kernel_days=%llu\n"
-		"bl_duration=%llu\n"
-		"bl_level_integral=%llu\n"
-		"bl_highlevel_duration=%llu\n"
-		"bl_lowlevel_duration=%llu\n"
-		"record_end=%llu\n",
-		pdata->panel_info.panel_active,
-		pdata->panel_info.kickoff_count,
-		pdata->panel_info.boottime + now_boot.tv_sec,
-		pdata->panel_info.bootRTCtime,
-		pdata->panel_info.bootdays,
-		pdata->panel_info.bl_duration,
-		pdata->panel_info.bl_level_integral,
-		pdata->panel_info.bl_highlevel_duration,
-		pdata->panel_info.bl_lowlevel_duration,
-		record_end);
-
-	return ret;
-}
-
-
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_dispparam, S_IRUGO | S_IWUSR, mdss_fb_get_dispparam, mdss_fb_set_dispparam);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO | S_IWUSR, mdss_fb_show_split,
@@ -1149,8 +1010,6 @@ static DEVICE_ATTR(measured_fps, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(msm_fb_persist_mode, S_IRUGO | S_IWUSR,
 	mdss_fb_get_persist_mode, mdss_fb_change_persist_mode);
 static DEVICE_ATTR(idle_power_collapse, S_IRUGO, mdss_fb_idle_pc_notify, NULL);
-static DEVICE_ATTR(msm_fb_count, S_IRUGO | S_IWUSR,
-	mdss_fb_get_panel_count, mdss_fb_set_panel_count);
 
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
@@ -1167,7 +1026,6 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_measured_fps.attr,
 	&dev_attr_msm_fb_persist_mode.attr,
 	&dev_attr_idle_power_collapse.attr,
-	&dev_attr_msm_fb_count.attr,
 	NULL,
 };
 
@@ -1989,7 +1847,6 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	u32 temp = bkl_lvl;
 	bool ad_bl_notify_needed = false;
 	bool bl_notify_needed = false;
-	static int backlight_enable_flag;
 
 	if ((((mdss_fb_is_power_off(mfd) && mfd->dcm_state != DCM_ENTER)
 		|| !mfd->allow_bl_update) && !IS_CALIB_MODE_BL(mfd)) ||
@@ -2026,12 +1883,12 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 			pr_debug("backlight sent to panel :%d\n", temp);
 
 			if (0 == temp) {
-				backlight_enable_flag = 0;
-				pr_info("in %s,turn backlight off level = %d\n", __func__, temp);
+				mfd->backlight_enable_flag = 0;
+				pr_info("%s,turn backlight off level = %d\n", __func__, temp);
 			} else {
-				if (0 == backlight_enable_flag) {
-					backlight_enable_flag++;
-					pr_info("in %s,set backlight level = %d\n", __func__, temp);
+				if (0 == mfd->backlight_enable_flag) {
+					mfd->backlight_enable_flag++;
+					pr_info("%s,set backlight level = %d\n", __func__, temp);
 				}
 			}
 
@@ -2070,6 +1927,12 @@ void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 					NOTIFY_TYPE_BL_AD_ATTEN_UPDATE);
 			mdss_fb_bl_update_notify(mfd, NOTIFY_TYPE_BL_UPDATE);
 			pdata->set_backlight(pdata, temp);
+
+			if (0 == mfd->backlight_enable_flag) {
+				pr_info("%s,set backlight level = %d\n", __func__, temp);
+				mfd->backlight_enable_flag++;
+			}
+
 			mfd->bl_level_scaled = mfd->unset_bl_level;
 			mfd->allow_bl_update = true;
 		}
@@ -3064,7 +2927,6 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 		prim_fbi = fbi;
 		atomic_set(&prim_panel_is_on, false);
 		INIT_DELAYED_WORK(&prim_panel_work, prim_panel_off_delayed_work);
-		wake_lock_init(&prim_panel_wakelock, WAKE_LOCK_SUSPEND, "prim_panel_wakelock");
 	}
 
 	return 0;
@@ -4907,6 +4769,7 @@ static int __mdss_fb_copy_destscaler_data(struct fb_info *info,
 					MDP_DESTSCALER_ENHANCER_UPDATE)) {
 			ret = copy_from_user(scale_data + i, scale_data_user,
 					     sizeof(*scale_data));
+
 			if (ret) {
 				pr_err("scale data copy from user failed\n");
 				return ret;
@@ -4915,7 +4778,6 @@ static int __mdss_fb_copy_destscaler_data(struct fb_info *info,
 			memset(scale_data + i, 0, sizeof(*scale_data));
 		}
 	}
-
 	return ret;
 }
 
@@ -4983,6 +4845,7 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 		goto err;
 	} else if (layer_count) {
 		buffer_size = sizeof(struct mdp_input_layer) * layer_count;
+
 		ret = copy_from_user(layer_list, input_layer_list, buffer_size);
 		if (ret) {
 			pr_err("layer list copy from user failed\n");
