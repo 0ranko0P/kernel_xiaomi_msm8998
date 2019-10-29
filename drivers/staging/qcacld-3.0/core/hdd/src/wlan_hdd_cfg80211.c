@@ -19028,6 +19028,7 @@ static const char *hdd_ieee80211_reason_code_to_str(uint16_t reason)
  */
 static void hdd_print_netdev_txq_status(struct net_device *dev)
 {
+#ifdef WLAN_DEBUG
 	unsigned int i;
 
 	if (!dev)
@@ -19038,6 +19039,7 @@ static void hdd_print_netdev_txq_status(struct net_device *dev)
 
 		hdd_info("netdev tx queue[%u] state: 0x%lx", i, txq->state);
 	}
+#endif
 }
 
 /**

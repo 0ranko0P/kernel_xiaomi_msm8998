@@ -4698,15 +4698,19 @@ void lim_send_mgmt_frame_tx(tpAniSirGlobal mac_ctx,
 {
 	struct sir_mgmt_msg *mb_msg = (struct sir_mgmt_msg *)msg_buf;
 	uint32_t msg_len;
+#ifdef WLAN_DEBUG
 	tpSirMacFrameCtl fc = (tpSirMacFrameCtl) mb_msg->data;
+#endif
 	uint8_t sme_session_id;
 	QDF_STATUS qdf_status;
 	uint8_t *frame;
 	void *packet;
 
 	msg_len = mb_msg->msg_len - sizeof(*mb_msg);
+#ifdef WLAN_DEBUG
 	pe_debug("sending fc->type: %d fc->subType: %d",
 		fc->type, fc->subType);
+#endif
 
 	sme_session_id = mb_msg->session_id;
 

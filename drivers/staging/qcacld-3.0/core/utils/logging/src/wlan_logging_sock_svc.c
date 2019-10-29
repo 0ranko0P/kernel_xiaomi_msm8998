@@ -1328,6 +1328,7 @@ static void send_packetdump_monitor(uint8_t type)
  */
 void wlan_deregister_txrx_packetdump(void)
 {
+#ifdef WLAN_DEBUG
 	if (gtx_count || grx_count) {
 		ol_deregister_packetdump_callback();
 		wma_deregister_packetdump_callback();
@@ -1339,6 +1340,7 @@ void wlan_deregister_txrx_packetdump(void)
 	} else
 		LOGGING_TRACE(QDF_TRACE_LEVEL_DEBUG,
 			"%s: deregistered packetdump already", __func__);
+#endif
 }
 
 /*

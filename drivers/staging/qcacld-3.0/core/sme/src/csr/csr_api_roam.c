@@ -1260,7 +1260,9 @@ static void csr_packetdump_timer_handler(void *pv)
 {
 	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
 			"%s Invoking packetdump deregistration API", __func__);
+#ifdef WLAN_DEBUG
 	wlan_deregister_txrx_packetdump();
+#endif
 }
 
 /**

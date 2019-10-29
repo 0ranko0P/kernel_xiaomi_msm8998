@@ -1691,7 +1691,7 @@ void qdf_dp_display_mgmt_pkt(struct qdf_dp_trace_record_s *record,
 {
 	int loc;
 	char prepend_str[QDF_DP_TRACE_PREPEND_STR_SIZE];
-	struct qdf_dp_trace_mgmt_buf *buf =
+	struct qdf_dp_trace_mgmt_buf *buf __maybe_unused =
 		(struct qdf_dp_trace_mgmt_buf *)record->data;
 
 	loc = qdf_dp_trace_fill_meta_str(prepend_str, sizeof(prepend_str),

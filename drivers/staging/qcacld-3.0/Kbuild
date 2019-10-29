@@ -181,7 +181,7 @@ ifeq ($(KERNEL_BUILD), 0)
 		CONFIG_LINUX_QCMBR :=y
 	endif
 
-	CONFIG_MPC_UT_FRAMEWORK := y
+	CONFIG_MPC_UT_FRAMEWORK := n
 
 	#Flag to enable offload packets feature
 	CONFIG_WLAN_OFFLOAD_PACKETS := y
@@ -254,11 +254,13 @@ CONFIG_WLAN_FEATURE_APF := y
 
 #Enable WLAN/Power debugfs feature only if debug_fs is enabled
 ifeq ($(CONFIG_DEBUG_FS), y)
+ifeq ($(BUILD_DEBUG_VERSION), 1)
        # Flag to enable debugfs. Depends on CONFIG_DEBUG_FS in kernel
        # configuration.
        CONFIG_WLAN_DEBUGFS := y
 
        CONFIG_WLAN_POWER_DEBUGFS := y
+endif
 endif
 
 # If not set, assume, Common driver is with in the build tree
@@ -1307,7 +1309,9 @@ CDEFINES += -DWLAN_FEATURE_FIPS
 endif
 
 ifneq ($(CONFIG_HIF_USB), 1)
+ifeq ($(BUILD_DEBUG_VERSION), 1)
 CDEFINES += -DWLAN_LOGGING_SOCK_SVC_ENABLE
+endif
 endif
 
 ifeq ($(CONFIG_WLAN_FEATURE_FILS),y)
