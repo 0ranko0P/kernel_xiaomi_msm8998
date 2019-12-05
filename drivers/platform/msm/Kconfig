@@ -101,6 +101,11 @@ config GSI
 	  and CPUs over various types of interfaces such as MHI, xDCI,
 	  xHCI, GPI, WDI, Ethernet, etc.
 
+config GSI_DEBUG
+	bool "Debugging part of GSI core"
+	depends on GSI || DEBUG_FS
+	default n
+
 config IPA3
 	tristate "IPA3 support"
 	depends on GSI && NET
