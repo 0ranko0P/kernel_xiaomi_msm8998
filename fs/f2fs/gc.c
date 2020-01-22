@@ -92,7 +92,7 @@ static int gc_thread_func(void *data)
 		else
 			wait_ms = gc_th->max_sleep_time;
 do_gc:
-		stat_inc_bggc_count(sbi);
+		stat_inc_bggc_count(sbi->stat_info);
 
 		/* if return value is not zero, no victim was selected */
 		if (f2fs_gc(sbi, test_opt(sbi, FORCE_FG_GC), true, NULL_SEGNO))
