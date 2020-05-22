@@ -341,6 +341,7 @@ static int ashmem_file_setup(struct ashmem_area *asma,
 {
 	char name[ASHMEM_FULL_NAME_LEN] = ASHMEM_NAME_DEF;
 	struct file *vmfile;
+	static struct file_operations vmfile_fops;
 
 	spin_lock(&asma->name_lock);
 	if (asma->name[ASHMEM_NAME_PREFIX_LEN] != '\0')
@@ -353,7 +354,35 @@ static int ashmem_file_setup(struct ashmem_area *asma,
 		return PTR_ERR(vmfile);
 	vmfile->f_mode |= FMODE_LSEEK;
 	WRITE_ONCE(asma->file, vmfile);
+
+	/*
+	 * override mmap operation of the vmfile so that it can't be
+	 * remapped which would lead to creation of a new vma with no
+	 * asma permission checks. Have to override get_unmapped_area
+	 * as well to prevent VM_BUG_ON check for f_ops modification.
+	 */
+	if (!vmfile_fops.mmap) {
+		vmfile_fops = *vmfile->f_op;
+		vmfile_fops.mmap = ashmem_vmfile_mmap;
+		vmfile_fops.get_unmapped_area =
+				ashmem_vmfile_get_unmapped_area;
+	}
+	vmfile->f_op = &vmfile_fops;
 	return 0;
+}
+
+static int ashmem_vmfile_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	/* do not allow to mmap ashmem backing shmem file directly */
+	return -EPERM;
+}
+
+static unsigned long
+ashmem_vmfile_get_unmapped_area(struct file *file, unsigned long addr,
+				unsigned long len, unsigned long pgoff,
+				unsigned long flags)
+{
+	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
 
 static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)

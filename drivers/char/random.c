@@ -2085,15 +2085,6 @@ u64 get_random_u64(void)
 	unsigned long flags = 0;
 	struct batched_entropy *batch;
 
-#if BITS_PER_LONG == 64
-	if (arch_get_random_long((unsigned long *)&ret))
-		return ret;
-#else
-	if (arch_get_random_long((unsigned long *)&ret) &&
-	    arch_get_random_long((unsigned long *)&ret + 1))
-	    return ret;
-#endif
-
 	use_lock = READ_ONCE(crng_init) < 2;
 	batch = &get_cpu_var(batched_entropy_u64);
 	if (use_lock)
@@ -2117,9 +2108,6 @@ u32 get_random_u32(void)
 	bool use_lock;
 	unsigned long flags = 0;
 	struct batched_entropy *batch;
-
-	if (arch_get_random_int(&ret))
-		return ret;
 
 	use_lock = READ_ONCE(crng_init) < 2;
 	batch = &get_cpu_var(batched_entropy_u32);
